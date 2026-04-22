@@ -5,12 +5,14 @@ A production-grade distributed task queue system built with **Python**, **FastAP
 ## Features
 
 - ✅ **FastAPI REST API** for task submission and status tracking
+- ✅ **Real-Time Web Dashboard** for visual task management (no CLI needed!)
 - ✅ **Redis** as a message broker for task distribution
 - ✅ **Async Task Execution** with worker processes
 - ✅ **Task Priority Support** for prioritizing important tasks
 - ✅ **Automatic Retry Logic** with exponential backoff (max 3 retries by default)
 - ✅ **Task Status Tracking** (pending, running, completed, failed, retrying)
 - ✅ **SQLite Database** for persistent task metadata storage
+- ✅ **PostgreSQL Ready** for production deployments
 - ✅ **Sample Tasks** included (sleep_task, math_task, data_processing_task)
 - ✅ **Comprehensive Logging** for task execution lifecycle
 - ✅ **Docker Support** with docker-compose for easy deployment
@@ -137,6 +139,40 @@ You can start multiple workers in different terminals to increase throughput:
 ```bash
 WORKER_NUM=2 python worker_main.py
 ```
+
+## Testing the System (Local 3-Terminal Setup)
+
+To verify the system is working flawlessly on Windows, open **3 separate PowerShell terminals** and run the following matching commands. Ensure Redis (or Memurai) is already running in your background.
+
+### Terminal 1: Start the API Server
+```powershell
+cd "e:\Distributed Task Queue System"
+.\.venv\Scripts\activate.ps1
+python main.py
+```
+
+### Terminal 2: Start the Worker
+```powershell
+cd "e:\Distributed Task Queue System"
+.\.venv\Scripts\activate.ps1
+python worker_main.py
+```
+
+### Terminal 3: Open the Dashboard
+Once Terminals 1 and 2 are running, open your browser and go to:
+
+**[http://localhost:8000](http://localhost:8000)**
+
+You'll see a modern, real-time web dashboard where you can:
+- 📊 View live queue statistics (Pending, Running, Completed, Failed tasks)
+- ✉️ Submit new tasks with a visual form (no JSON/CLI needed!)
+- 📈 Monitor task progress in real-time
+- 🎯 Set task priorities (0-100)
+- 🔍 Filter and search task history
+
+**For a detailed guide on using the dashboard, see [DASHBOARD_GUIDE.md](DASHBOARD_GUIDE.md)**
+
+*Note: When updating any code, pause (`Ctrl+C`) and re-run the commands in Terminals 1 and 2 before refreshing Terminal 3 dashboard.*
 
 ### Option 2: Docker Compose (Recommended for Production)
 
