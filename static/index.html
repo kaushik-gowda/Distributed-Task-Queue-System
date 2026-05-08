@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Queue Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [v-cloak] { display: none; }
+        .gradient-text {
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased min-h-screen font-sans">
+    <div id="app" v-cloak class="flex h-screen">
+        
+        <!-- Sidebar -->
+        <div class="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm hidden md:flex">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-center">
+                <i class="fa-solid fa-layer-group text-blue-500 text-2xl mr-3"></i>
+                <h1 class="text-xl font-bold tracking-tight text-gray-900">Task<span class="text-blue-500">Queue</span></h1>
+            </div>
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+                <a href="#" class="flex items-center px-4 py-3 bg-blue-50 text-blue-700 rounded-xl font-medium transition-colors">
+                    <i class="fa-solid fa-chart-line w-6"></i> Dashboard
+                </a>
+                <a href="/docs" target="_blank" class="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl font-medium transition-colors">
+                    <i class="fa-solid fa-book w-6 text-gray-400"></i> API Docs
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center space-x-3 px-3 py-2 bg-gray-50 rounded-lg">
+                    <div class="w-2 h-2 rounded-full" :class="health.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'"></div>
+                    <span class="text-sm font-medium text-gray-700 capitalize">System: {{ health.status }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            
+            <!-- Header -->
+            <header class="bg-white shadow-[0_1px_3px_rgb(0,0,0,0.05)] border-b border-gray-200 p-4 lg:p-6 flex items-center justify-between shrink-0">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Overview</h2>
+                    <p class="text-sm text-gray-500 mt-1">Real-time distributed task monitoring</p>
+                </div>
+                <button @click="fetchData" class="p-2 text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-blue-50 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1">
+                    <i class="fa-solid fa-rotate-right" :class="{'animate-spin': loading}"></i>
+                </button>
+            </header>
+
+            <!-- Scrollable Page Content -->
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50/50 p-4 lg:p-8">
+                
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center transition-transform hover:-translate-y-1">
+                        <div class="p-3 bg-purple-50 rounded-full mb-3 text-purple-600"><i class="fa-solid fa-clock text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-500 uppercase tracking-widest">Pending</p>
+                        <p class="text-4xl font-extrabold text-gray-900 mt-2">{{ stats.pending_tasks || 0 }}</p>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center transition-transform hover:-translate-y-1">
+                        <div class="p-3 bg-blue-50 rounded-full mb-3 text-blue-600"><i class="fa-solid fa-person-running text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-500 uppercase tracking-widest">Running</p>
+                        <p class="text-4xl font-extrabold text-gray-900 mt-2">{{ stats.running_tasks || 0 }}</p>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center transition-transform hover:-translate-y-1">
+                        <div class="p-3 bg-emerald-50 rounded-full mb-3 text-emerald-600"><i class="fa-solid fa-circle-check text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-500 uppercase tracking-widest">Completed</p>
+                        <p class="text-4xl font-extrabold text-gray-900 mt-2">{{ stats.completed_tasks || 0 }}</p>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center justify-center transition-transform hover:-translate-y-1">
+                        <div class="p-3 bg-rose-50 rounded-full mb-3 text-rose-600"><i class="fa-solid fa-circle-xmark text-xl"></i></div>
+                        <p class="text-sm font-medium text-gray-500 uppercase tracking-widest">Failed</p>
+                        <p class="text-4xl font-extrabold text-gray-900 mt-2">{{ stats.failed_tasks || 0 }}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    
+                    <!-- Task Submission Form -->
+                    <div class="xl:col-span-1 border border-gray-100 bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                        <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-lg font-semibold text-gray-900"><i class="fa-solid fa-paper-plane text-blue-500 mr-2"></i> Submit Task</h3>
+                        </div>
+                        <div class="p-6 flex-1 flex flex-col space-y-5">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Task Type</label>
+                                <select v-model="newTask.task_type" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-700 bg-white transition-shadow shadow-sm">
+                                    <option value="sleep_task">Sleep Task (Simulation)</option>
+                                    <option value="math_task">Math Task</option>
+                                    <option value="data_processing_task">Data Processing</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Priority (0-100)</label>
+                                <input type="number" v-model="newTask.priority" min="0" max="100" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-700 bg-white transition-shadow shadow-sm">
+                            </div>
+
+                            <div class="flex-1 flex flex-col">
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">JSON Payload</label>
+                                <textarea v-model="newTask.payload" rows="6" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm text-gray-800 bg-gray-50 shadow-inner flex-1 resize-none" placeholder='{"key": "value"}'></textarea>
+                                <p class="text-xs text-red-500 mt-2 h-4">{{ jsonError }}</p>
+                            </div>
+
+                            <button @click="submitTask" :disabled="isSubmitting" class="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition-all active:scale-95 flex justify-center items-center">
+                                <i class="fa-solid fa-spinner fa-spin mr-2" v-if="isSubmitting"></i>
+                                <span>{{ isSubmitting ? 'Enqueuing...' : 'Enqueue Task' }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tasks Log -->
+                    <div class="xl:col-span-2 border border-gray-100 bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+                        <div class="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center shrink-0">
+                            <h3 class="text-lg font-semibold text-gray-900"><i class="fa-solid fa-list-check text-blue-500 mr-2"></i> Recent Activity</h3>
+                            <select v-model="filterStatus" @change="fetchData" class="text-sm border-gray-300 rounded-lg py-1.5 pl-3 pr-8 focus:ring-blue-500 focus:border-blue-500 inline-block bg-white text-gray-700 font-medium">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="running">Running</option>
+                                <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 overflow-auto bg-white p-0 m-0">
+                            <table class="min-w-full divide-y border-collapse divide-gray-200">
+                                <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left pl-6 text-xs font-bold text-gray-500 uppercase tracking-wider">ID / Time</th>
+                                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-100">
+                                    <tr v-if="tasks.length === 0" class="hover:bg-transparent">
+                                        <td colspan="3" class="px-6 py-12 text-center text-gray-400 font-medium bg-gray-50/50">No tasks found here yet. Start enqueuing!</td>
+                                    </tr>
+                                    <tr v-for="task in tasks" :key="task.task_id" class="hover:bg-blue-50/50 transition-colors group cursor-default">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div>
+                                                    <div class="text-sm font-medium text-gray-900 font-mono">{{ task.task_id.substring(0,8) }}...</div>
+                                                    <div class="text-xs text-gray-500 mt-0.5"><i class="fa-regular fa-calendar mr-1"></i>{{ new Date(task.created_at).toLocaleTimeString() }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-md bg-gray-100 text-gray-800 border border-gray-200">
+                                                {{ task.task_type }}
+                                            </span>
+                                            <div class="text-[10px] text-gray-400 mt-1 font-semibold tracking-wide ml-1">PRIORITY: {{task.priority}}</div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full capitalize"
+                                                  :class="{
+                                                    'bg-purple-100 text-purple-800 border': task.status === 'pending',
+                                                    'bg-blue-100 text-blue-800 animate-pulse border': task.status === 'running',
+                                                    'bg-emerald-100 text-emerald-800 hidden-border': task.status === 'completed',
+                                                    'bg-rose-100 text-rose-800 border': task.status === 'failed'
+                                                  }">
+                                                <i class="mr-1.5" :class="{
+                                                    'fa-solid fa-clock': task.status === 'pending',
+                                                    'fa-solid fa-spinner fa-spin': task.status === 'running',
+                                                    'fa-solid fa-check': task.status === 'completed',
+                                                    'fa-solid fa-xmark': task.status === 'failed'
+                                                }"></i>
+                                                {{ task.status }}
+                                            </span>
+                                            <div v-if="task.status === 'failed'" class="text-xs text-rose-500 mt-2 truncate w-48 font-medium">Error: {{ task.error_message }}</div>
+                                            <div v-else-if="task.status === 'completed'" class="text-xs text-emerald-600 mt-2 truncate w-48 font-mono">Result: {{ JSON.stringify(task.result).substring(0, 20) }}...</div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    stats: {},
+                    tasks: [],
+                    health: { status: 'checking...' },
+                    filterStatus: '',
+                    loading: false,
+                    isSubmitting: false,
+                    newTask: {
+                        task_type: 'sleep_task',
+                        priority: 0,
+                        payload: '{\n  "duration": 3,\n  "message": "Hello from GUI"\n}'
+                    },
+                    jsonError: '',
+                    pollingInterval: null
+                }
+            },
+            methods: {
+                async fetchData() {
+                    this.loading = true;
+                    try {
+                        const [statsRes, tasksRes, healthRes] = await Promise.all([
+                            fetch('/api/stats'),
+                            fetch(`/api/tasks?limit=50${this.filterStatus ? `&status=${this.filterStatus}` : ''}`),
+                            fetch('/api/health')
+                        ]);
+                        
+                        this.stats = await statsRes.json();
+                        const taskData = await tasksRes.json();
+                        this.tasks = taskData.tasks;
+                        this.health = await healthRes.json();
+                    } catch (e) {
+                        console.error('Failed to fetch data', e);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async submitTask() {
+                    this.jsonError = '';
+                    let parsedPayload;
+                    
+                    try {
+                        parsedPayload = JSON.parse(this.newTask.payload);
+                    } catch (e) {
+                        this.jsonError = 'Invalid JSON: ' + e.message;
+                        return;
+                    }
+
+                    this.isSubmitting = true;
+                    try {
+                        const res = await fetch('/api/task', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                task_type: this.newTask.task_type,
+                                priority: this.newTask.priority,
+                                payload: parsedPayload
+                            })
+                        });
+                        
+                        if (res.ok) {
+                            // Flash success state if needed
+                            this.fetchData(); // immediately update list
+                        } else {
+                            const err = await res.json();
+                            alert('Failed to submit: ' + (err.detail || 'Unknown error'));
+                        }
+                    } catch (e) {
+                        alert('Network fault');
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                }
+            },
+            mounted() {
+                this.fetchData();
+                // Auto-refresh the dashboard every 3 seconds for that "real-time SaaS" feel
+                this.pollingInterval = setInterval(this.fetchData, 3000);
+            },
+            beforeUnmount() {
+                if (this.pollingInterval) clearInterval(this.pollingInterval);
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
