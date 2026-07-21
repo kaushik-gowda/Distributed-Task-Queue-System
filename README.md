@@ -1,207 +1,104 @@
 # Distributed Task Queue System
 
-A production-grade distributed task queue system built with **Python**, **FastAPI**, **Redis**, and **SQLite**. This system allows you to submit long-running or computationally heavy tasks asynchronously and track their status in real-time.
+This project is a distributed background job system for submitting, tracking, and executing asynchronous tasks. It is built with Python, FastAPI, Redis, SQLite, and a browser-based dashboard so you can understand task processing without needing a command-line workflow.
 
-## Features
+## What The Project Is For
 
-- ✅ **FastAPI REST API** for task submission and status tracking
-- ✅ **Real-Time Web Dashboard** for visual task management (no CLI needed!)
-- ✅ **Redis** as a message broker for task distribution
-- ✅ **Async Task Execution** with worker processes
-- ✅ **Task Priority Support** for prioritizing important tasks
-- ✅ **Automatic Retry Logic** with exponential backoff (max 3 retries by default)
-- ✅ **Task Status Tracking** (pending, running, completed, failed, retrying)
-- ✅ **SQLite Database** for persistent task metadata storage
-- ✅ **PostgreSQL Ready** for production deployments
-- ✅ **Sample Tasks** included (sleep_task, math_task, data_processing_task)
-- ✅ **Comprehensive Logging** for task execution lifecycle
-- ✅ **Docker Support** with docker-compose for easy deployment
-- ✅ **Production-Ready Code** with proper error handling and separation of concerns
-- ✅ **Health Check Endpoint** to monitor system status
+The system is designed for workloads that should not block a user request or a main application thread. Typical examples include:
+
+- background notifications
+- report generation
+- data cleanup or transformation
+- scheduled or delayed work
+- simulated long-running jobs while testing queue behavior
+
+In practice, a client submits a task, the API stores the task record, Redis carries the queue item, and a worker process executes the job and updates its status.
+
+## Where It Is Used
+
+This kind of architecture is useful anywhere you need reliable background execution with visibility into task progress:
+
+- web applications that need to offload slow work
+- internal tools that must show task state in real time
+- systems that need retries after transient failure
+- demos or labs for understanding queue-based architecture
+- production-style prototypes where Redis-backed task dispatch is a good fit
+
+## How It Works
+
+The request flow is simple:
+
+1. A user opens the dashboard in a browser or sends an API request.
+2. The API validates the payload and creates a task record in the database.
+3. The task ID is pushed into Redis with a priority value.
+4. A worker pulls the task from the queue and runs the matching executor.
+5. The worker writes the final status, result, retry count, and timestamps back to the database.
+6. The dashboard refreshes task and queue information through the API.
+
+## Main Capabilities
+
+- FastAPI REST API for task submission, lookup, listing, stats, and health checks
+- browser dashboard for queue visibility and task submission
+- Redis-based queue for asynchronous dispatch
+- SQLite persistence for task metadata and status history
+- priority support so urgent jobs are processed first
+- retry handling with exponential backoff
+- logging across API and worker execution
+- sample tasks for sleep, math, and data processing workloads
 
 ## Project Structure
 
 ```
-Distributed-Task-Queue-System/
+Distributed Task Queue System/
+├── main.py                  # FastAPI application entry point
+├── worker_main.py           # Worker process entry point
+├── test_system.py           # End-to-end API/task checks
+├── static/index.html        # Browser dashboard
 ├── src/
-│   ├── api/                 # FastAPI handlers and schemas
-│   │   ├── handlers.py      # API endpoint handlers
-│   │   ├── schemas.py       # Pydantic request/response models
-│   │   └── __init__.py
-│   ├── db/                  # Database layer
-│   │   ├── models.py        # SQLAlchemy models
-│   │   ├── connection.py    # Database connection management
-│   │   ├── repository.py    # Task repository (DAO pattern)
-│   │   └── __init__.py
-│   ├── queue/               # Message queue layer
-│   │   ├── broker.py        # Redis queue implementation
-│   │   └── __init__.py
-│   ├── tasks/               # Task implementations
-│   │   ├── sample_tasks.py  # Sample task executors
-│   │   └── __init__.py
-│   ├── worker/              # Worker process
-│   │   ├── executor.py      # Task executor logic
-│   │   └── __init__.py
-│   ├── utils/               # Utilities
-│   │   ├── logger.py        # Logging setup
-│   │   ├── decorators.py    # Retry decorators
-│   │   └── __init__.py
-│   ├── config.py            # Configuration management
-│   └── __init__.py
-├── docker/                  # Docker configuration
-│   └── Dockerfile
-├── tests/                   # Test suite (placeholder)
-├── main.py                  # FastAPI app entry point
-├── worker_main.py           # Worker entry point
-├── requirements.txt         # Python dependencies
-├── docker-compose.yml       # Docker compose configuration
-├── .env.example             # Environment variables example
-└── README.md                # This file
+│   ├── api/handlers.py      # API endpoints and request handling
+│   ├── api/schemas.py       # Request/response models
+│   ├── db/                  # Database models, repository, and connection code
+│   ├── queue/broker.py      # Redis queue implementation
+│   ├── tasks/sample_tasks.py  # Built-in task executors
+│   ├── worker/executor.py   # Worker-side task execution logic
+│   ├── utils/               # Logging and helpers
+│   └── config.py            # Environment-backed configuration
+├── docker/                  # Container build files
+├── docker-compose.yml       # Multi-service deployment definition
+├── k8s/                     # Kubernetes manifests
+├── monitoring/              # Prometheus configuration
+└── requirements.txt         # Python dependencies
 ```
 
-## Prerequisites
 
-- Python 3.11+
-- Redis 5+
-- pip or conda
+### Component Responsibilities
 
-## Installation
+| Component | Responsibility | Persistence |
+|------------|---------------|-------------|
+| **Client / Dashboard** | Submit tasks and monitor execution | Stateless |
+| **FastAPI API** | Validate requests, create task records, expose REST APIs | Writes to SQLite |
+| **SQLite Database** | Stores task metadata, status, timestamps and execution results | Persistent |
+| **Redis Queue** | Maintains pending tasks using priority ordering | In-memory |
+| **Worker Process** | Polls Redis, executes tasks, updates task state | Stateless |
+| **Dashboard** | Displays live task information using REST APIs | Stateless |
 
-### 1. Clone and Setup Virtual Environment
+---
 
-```bash
-cd "Distributed Task Queue System"
+# Complete Task Lifecycle
 
-# Create virtual environment
-python -m venv venv
+## Step 1 — Task Submission
 
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
+The client submits a task using either the dashboard or the REST API.
+
+```text
+Client
+   │
+   ▼
+POST /api/task
 ```
 
-### 2. Install Dependencies
+Example request
 
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Setup Environment Variables
-
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env with your configuration
-# Default values should work for local development
-```
-
-## Running the System
-
-### Option 1: Local Development (Recommended for Testing)
-
-You'll need to run three components in separate terminals:
-
-#### Terminal 1: Start Redis
-
-```bash
-# Make sure Redis is installed and running
-# On Windows (if using Windows Subsystem for Linux or installed Redis):
-redis-server
-
-# On macOS (with Homebrew):
-brew services start redis
-
-# Or using Docker:
-docker run -d -p 6379:6379 redis:7-alpine
-```
-
-#### Terminal 2: Start FastAPI Server
-
-```bash
-# Activate virtual environment first
-python main.py
-```
-
-The API will be available at: `http://localhost:8000`
-API documentation: `http://localhost:8000/docs`
-
-#### Terminal 3: Start Worker(s)
-
-```bash
-# Activate virtual environment first
-python worker_main.py
-```
-
-You can start multiple workers in different terminals to increase throughput:
-```bash
-WORKER_NUM=2 python worker_main.py
-```
-
-## Testing the System (Local 3-Terminal Setup)
-
-To verify the system is working flawlessly on Windows, open **3 separate PowerShell terminals** and run the following matching commands. Ensure Redis (or Memurai) is already running in your background.
-
-### Terminal 1: Start the API Server
-```powershell
-cd "e:\Distributed Task Queue System"
-.\.venv\Scripts\activate.ps1
-python main.py
-```
-
-### Terminal 2: Start the Worker
-```powershell
-cd "e:\Distributed Task Queue System"
-.\.venv\Scripts\activate.ps1
-python worker_main.py
-```
-
-### Terminal 3: Open the Dashboard
-Once Terminals 1 and 2 are running, open your browser and go to:
-
-**[http://localhost:8000](http://localhost:8000)**
-
-You'll see a modern, real-time web dashboard where you can:
-- 📊 View live queue statistics (Pending, Running, Completed, Failed tasks)
-- ✉️ Submit new tasks with a visual form (no JSON/CLI needed!)
-- 📈 Monitor task progress in real-time
-- 🎯 Set task priorities (0-100)
-- 🔍 Filter and search task history
-
-**For a detailed guide on using the dashboard, see [DASHBOARD_GUIDE.md](DASHBOARD_GUIDE.md)**
-
-*Note: When updating any code, pause (`Ctrl+C`) and re-run the commands in Terminals 1 and 2 before refreshing Terminal 3 dashboard.*
-
-### Option 2: Docker Compose (Recommended for Production)
-
-```bash
-# Start all services
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f
-
-# Stop all services
-docker-compose down
-```
-
-**Scale workers as needed:**
-```bash
-docker-compose up -d --scale worker=3
-```
-
-## API Endpoints
-
-### Base URL: `http://localhost:8000/api`
-
-### 1. Submit a Task
-```
-POST /task
-```
-
-**Request:**
 ```json
 {
   "task_type": "sleep_task",
@@ -209,390 +106,242 @@ POST /task
     "duration": 5,
     "message": "Processing..."
   },
-  "priority": 0
+  "priority": 10
 }
 ```
 
-**Response:** (201 Created)
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "task_type": "sleep_task",
-  "status": "pending",
-  "payload": {"duration": 5, "message": "Processing..."},
-  "result": null,
-  "error_message": null,
-  "retry_count": 0,
-  "priority": 0,
-  "created_at": "2024-01-15T10:30:00",
-  "updated_at": "2024-01-15T10:30:00",
-  "started_at": null,
-  "completed_at": null
-}
+The API performs:
+
+- Validates request payload
+- Validates task type
+- Validates priority
+- Generates a unique Task ID
+- Stores task metadata in SQLite
+- Pushes Task ID into Redis Priority Queue
+
+```text
+Client
+   │
+   ▼
+ FastAPI
+   │
+   ├──────────────► SQLite
+   │                  │
+   │             Store Task
+   │
+   └──────────────► Redis
+                      │
+                 Priority Queue
 ```
 
-### 2. Get Task Status
-```
-GET /task/{task_id}
-```
+---
 
-**Response:**
-```json
-{
-  "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "task_type": "sleep_task",
-  "status": "completed",
-  "payload": {"duration": 5, "message": "Processing..."},
-  "result": {
-    "status": "success",
-    "message": "Slept for 5 seconds",
-    "duration": 5,
-    "original_message": "Processing..."
-  },
-  "error_message": null,
-  "retry_count": 0,
-  "priority": 0,
-  "created_at": "2024-01-15T10:30:00",
-  "updated_at": "2024-01-15T10:30:05",
-  "started_at": "2024-01-15T10:30:00",
-  "completed_at": "2024-01-15T10:30:05"
-}
+## Step 2 — Queue Polling
+
+Worker processes continuously poll Redis.
+
+```text
+Redis Queue
+      │
+      ▼
+ Worker Process
 ```
 
-### 3. List Tasks
-```
-GET /tasks?status=pending&limit=100&offset=0
-```
+Each worker:
 
-Query Parameters:
-- `status` (optional): Filter by status (pending, running, completed, failed, retrying)
-- `limit` (optional): Number of tasks to return (default: 100)
-- `offset` (optional): Pagination offset (default: 0)
+- Fetches highest-priority task
+- Removes it from pending queue
+- Loads task metadata from SQLite
+- Marks task as RUNNING
 
-### 4. Get Queue Statistics
-```
-GET /stats
-```
+---
 
-**Response:**
-```json
-{
-  "pending_tasks": 5,
-  "running_tasks": 2,
-  "completed_tasks": 45,
-  "failed_tasks": 3,
-  "total_tasks": 55
-}
+## Step 3 — Task Execution
+
+```text
+Worker
+   │
+   ▼
+Load Task
+   │
+   ▼
+Execute Task
 ```
 
-### 5. Health Check
-```
-GET /health
-```
+Execution flow
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:35:00",
-  "redis_connected": true,
-  "database_connected": true
-}
-```
+- Update status → RUNNING
+- Record start timestamp
+- Execute business logic
+- Capture output or exception
 
-## Sample Tasks
+Task execution occurs **outside the database transaction**, preventing long-running database locks.
 
-### 1. Sleep Task
-Simulates a long-running job by sleeping.
+---
 
-```bash
-curl -X POST http://localhost:8000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_type": "sleep_task",
-    "payload": {
-      "duration": 10,
-      "message": "Processing data..."
-    },
-    "priority": 0
-  }'
+## Step 4 — Successful Execution
+
+```text
+Execute Task
+      │
+      ▼
+Completed
+      │
+      ├── Update SQLite
+      ├── Store Result
+      └── Update Redis
 ```
 
-### 2. Math Task
-Performs mathematical operations.
+Worker updates:
 
-```bash
-curl -X POST http://localhost:8000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_type": "math_task",
-    "payload": {
-      "operation": "add",
-      "operands": [10, 20, 30]
-    },
-    "priority": 1
-  }'
+- status = COMPLETED
+- completed_at timestamp
+- execution result
+- execution duration
+
+---
+
+## Step 5 — Failure & Retry
+
+If execution fails,
+
+```text
+Execution Error
+        │
+        ▼
+Retry Available?
+     ┌──┴──┐
+     │     │
+    YES    NO
+     │     │
+ Retry   Failed
 ```
 
-Supported operations: `add`, `subtract`, `multiply`, `divide`
+When retries remain:
 
-### 3. Data Processing Task
-Processes and analyzes data.
+- Increment retry count
+- Apply exponential backoff
+- Push task back into Redis
 
-```bash
-curl -X POST http://localhost:8000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_type": "data_processing_task",
-    "payload": {
-      "data": [1, 2, 3, 4, 5],
-      "action": "sum"
-    },
-    "priority": 0
-  }'
+Otherwise:
+
+- Status = FAILED
+- Save error message
+- Store completion timestamp
+
+---
+
+# End-to-End Data Flow
+
+```text
+             Client
+                │
+                ▼
+        FastAPI REST API
+                │
+      ┌─────────┴─────────┐
+      │                   │
+      ▼                   ▼
+ SQLite Database     Redis Queue
+      ▲                   │
+      │                   ▼
+      └──────────── Worker
+                          │
+                          ▼
+                   Execute Task
+                          │
+      ┌───────────────────┴───────────────────┐
+      ▼                                       ▼
+ Update SQLite                          Update Redis
+      │
+      ▼
+ Dashboard / API
 ```
 
-Supported actions: `sum`, `average`, `unique`
+---
 
-## Configuration
+# Task State Flow
 
-Edit `.env` file to customize:
-
-```env
-# API Server
-API_HOST=0.0.0.0           # Server host
-API_PORT=8000              # Server port
-API_WORKERS=1              # Number of API workers
-
-# Redis
-REDIS_HOST=localhost       # Redis host
-REDIS_PORT=6379            # Redis port
-REDIS_DB=0                 # Redis database number
-REDIS_PASSWORD=            # Redis password (if required)
-
-# Database
-DB_PATH=tasks.db           # SQLite database path
-DB_ECHO=False              # SQL query logging
-
-# Worker
-WORKER_NUM=2               # Number of worker processes
-QUEUE_NAME=task_queue      # Queue name in Redis
-TASK_TIMEOUT=300           # Task timeout in seconds
-MAX_RETRIES=3              # Maximum retry attempts
-BACKOFF_FACTOR=2.0         # Retry backoff multiplier
-POLL_INTERVAL=1.0          # Queue polling interval (seconds)
-
-# Logging
-LOG_LEVEL=INFO             # Log level (DEBUG, INFO, WARNING, ERROR)
-DEBUG=False                # Debug mode
+```text
+          PENDING
+              │
+              ▼
+          RUNNING
+         ┌────┴────┐
+         ▼         ▼
+   COMPLETED    FAILED
+                    │
+                    ▼
+               RETRYING
+                    │
+                    ▼
+                RUNNING
 ```
 
-## Error Handling & Retry Logic
+---
 
-Tasks failing during execution will automatically retry according to these rules:
+# Multi-Worker Execution
 
-1. **Initial Attempt** → Task fails → Move to RETRYING status
-2. **Retry 1** → Wait (1s × backoff_factor^0) → Attempt again
-3. **Retry 2** → Wait (1s × backoff_factor^1) → Attempt again
-4. **Retry 3** → Wait (1s × backoff_factor^2) → Attempt again
-5. **Max Retries Exceeded** → Mark as FAILED, store error message
+Multiple workers can process independent tasks simultaneously.
 
-Configuration:
-- `MAX_RETRIES=3`: Number of retry attempts
-- `BACKOFF_FACTOR=2.0`: Exponential backoff multiplier
-- `TASK_TIMEOUT=300`: Timeout per task (added to schema for future use)
-
-## Task Priority
-
-Tasks support priority levels (0-100, higher = more important):
-
-```bash
-# High priority task (will be processed first)
-curl -X POST http://localhost:8000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_type": "math_task",
-    "payload": {"operation": "add", "operands": [1, 2]},
-    "priority": 100
-  }'
-
-# Low priority task (will be processed later)
-curl -X POST http://localhost:8000/api/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_type": "sleep_task",
-    "payload": {"duration": 5},
-    "priority": 0
-  }'
+```text
+                Redis Queue
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+    Worker-1     Worker-2     Worker-3
+        │            │            │
+        ▼            ▼            ▼
+ Execute Task   Execute Task  Execute Task
+        │            │            │
+        └────────────┼────────────┘
+                     ▼
+             Update SQLite
 ```
 
-## Logging
+Tasks execute **in parallel**, improving throughput while maintaining queue priority.
 
-The system provides comprehensive logging for debugging:
+---
 
-```
-2024-01-15 10:30:00 - src.api.handlers - INFO - Task submitted: 550e8400... (type: sleep_task)
-2024-01-15 10:30:00 - src.worker.executor - INFO - [worker-1] Processing task: 550e8400...
-2024-01-15 10:30:00 - src.worker.executor - INFO - [worker-1] Executing sleep_task task: 550e8400...
-2024-01-15 10:30:05 - src.worker.executor - INFO - [worker-1] Task completed successfully: 550e8400...
-```
+# Error Handling
 
-Adjust log level in `.env`:
-```env
-LOG_LEVEL=DEBUG    # Very verbose
-LOG_LEVEL=INFO     # Standard (recommended)
-LOG_LEVEL=WARNING  # Only warnings and errors
-```
+### Retry Mechanism
 
-## Testing the System
+- Configurable retry attempts
+- Exponential backoff
+- Automatic re-queueing
 
-### Example: Submit Multiple Tasks
+### Persistent Storage
 
-```bash
-#!/bin/bash
+SQLite stores:
 
-# Submit 5 tasks
-for i in {1..5}; do
-  curl -X POST http://localhost:8000/api/task \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"task_type\": \"sleep_task\",
-      \"payload\": {\"duration\": 3, \"message\": \"Task $i\"},
-      \"priority\": $((RANDOM % 10))
-    }"
-  echo "Submitted task $i"
-done
+- Task metadata
+- Status history
+- Execution timestamps
+- Results
+- Error messages
 
-# Check statistics
-sleep 2
-curl http://localhost:8000/api/stats | jq .
+### Redis Responsibilities
 
-# List all tasks
-curl "http://localhost:8000/api/tasks?limit=100" | jq .
-```
+Redis stores:
 
-## Production Deployment
+- Pending task queue
+- Priority ordering
+- Temporary execution state
 
-### Using Docker Compose
+SQLite remains the **source of truth** for task history.
 
-```bash
-# Build images
-docker-compose build
+---
 
-# Start services
-docker-compose up -d
+# Why This Architecture?
 
-# Scale workers
-docker-compose up -d --scale worker=5
+This architecture provides:
 
-# View logs
-docker-compose logs -f worker
-
-# Stop services
-docker-compose down
-
-# Cleanup volumes
-docker-compose down -v
-```
-
-### Using Kubernetes (Future)
-
-The Docker images can be deployed to Kubernetes or other orchestration platforms.
-
-### Performance Considerations
-
-1. **Scale Workers**: Increase `WORKER_NUM` for higher throughput
-2. **Redis Memory**: Monitor Redis memory usage for large task queues
-3. **Database**: Consider using PostgreSQL for production
-4. **Monitoring**: Add Prometheus metrics endpoint for monitoring
-
-## Troubleshooting
-
-### Redis Connection Error
-```
-Failed to connect to Redis: Connection refused
-```
-**Solution**: Ensure Redis is running
-```bash
-redis-cli ping  # Should return PONG
-```
-
-### Database Lock Error
-```
-database is locked
-```
-**Solution**: Close other connections to the database or use a production database like PostgreSQL
-
-### Tasks Not Processing
-1. Check if workers are running: `python worker_main.py`
-2. Check Redis queue: `redis-cli`
-3. Verify logs: `LOG_LEVEL=DEBUG` in `.env`
-
-### Port Already in Use
-```
-Address already in use
-```
-**Solution**: Change port in `.env` or kill the existing process
-```bash
-# Find process on port 8000
-lsof -i :8000
-kill -9 <PID>
-```
-
-## Architecture
-
-```
-┌─────────────┐
-│   Client    │ HTTP requests
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────┐
-│  FastAPI Server │ POST /task
-│  (main.py)      │ GET /task/{id}
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌────────┐  ┌────────┐
-│ Redis  │  │SQLite  │
-│ Queue  │  │ Store  │
-└────┬───┘  └───┬────┘
-     │          │
-     ▼          │
-┌──────────────┐│
-│  Worker      ││
-│  Process     ││
-│  (worker_    │└─ Reads/Writes
-│   main.py)   │   Task Status
-└──────────────┘
-```
-
-## Future Enhancements
-
-- [ ] Task scheduling/cron support
-- [ ] WebSocket support for real-time updates
-- [ ] Prometheus metrics integration
-- [ ] PostgreSQL support for production
-- [ ] Task result caching
-- [ ] Dead letter queue for permanently failed tasks
-- [ ] Task filtering by metadata
-- [ ] Batch task submission
-- [ ] Task cancellation support
-- [ ] Rate limiting and throttling
-
-## License
-
-MIT
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-- Code follows PEP 8 style guide
-- All functions have docstrings
-- Error handling is comprehensive
-- Logging is included for debugging
-
-## Support
-
-For issues, questions, or suggestions, please open an issue in the repository.
+- Asynchronous background processing
+- High-priority task scheduling
+- Reliable persistence
+- Automatic retries
+- Horizontal worker scaling
+- Fault tolerance
+- Separation of concerns
+- Real-time task monitoring
