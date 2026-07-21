@@ -65,7 +65,12 @@ def submit_task(request: TaskSubmitRequest) -> TaskResponse:
             
             # Enqueue task to Redis
             queue = get_queue()
-            queue.enqueue(task_id, priority=request.priority)
+            if not queue.enqueue(task_id, priority=request.priority):
+                TaskRepository.delete_task(session, task_id)
+                raise HTTPException(
+                    status_code=503,
+                    detail="Task was saved to the database but could not be enqueued in Redis."
+                )
             
             logger.info(f"Task submitted: {task_id} (type: {request.task_type})")
             
@@ -129,12 +134,14 @@ def list_tasks(
     """
     session = get_session()
     try:
-        query = session.query(src.db.Task)
+        from src.db import Task
+        
+        query = session.query(Task)
         
         if status:
             try:
                 status_enum = TaskStatus(status)
-                query = query.filter(src.db.Task.status == status_enum)
+                query = query.filter(Task.status == status_enum)
             except ValueError:
                 raise HTTPException(
                     status_code=400,
@@ -142,7 +149,7 @@ def list_tasks(
                 )
         
         total = query.count()
-        tasks = query.order_by(src.db.Task.created_at.desc()).offset(offset).limit(limit).all()
+        tasks = query.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
         
         return TaskListResponse(
             tasks=[TaskResponse.model_validate(task) for task in tasks],
@@ -165,18 +172,18 @@ def get_queue_stats() -> QueueStatsResponse:
     try:
         from src.db import Task
         
-        pending = session.query(Task).filter(Task.status == TaskStatus.PENDING).count()
-        running = session.query(Task).filter(Task.status == TaskStatus.RUNNING).count()
-        completed = session.query(Task).filter(Task.status == TaskStatus.COMPLETED).count()
-        failed = session.query(Task).filter(Task.status == TaskStatus.FAILED).count()
-        total = session.query(Task).count()
+        pending = session.query(Task).filter(Task.status == TaskStatus.PENDING).count() or 0
+        running = session.query(Task).filter(Task.status == TaskStatus.RUNNING).count() or 0
+        completed = session.query(Task).filter(Task.status == TaskStatus.COMPLETED).count() or 0
+        failed = session.query(Task).filter(Task.status == TaskStatus.FAILED).count() or 0
+        total = session.query(Task).count() or 0
         
         return QueueStatsResponse(
-            pending_tasks=pending,
-            running_tasks=running,
-            completed_tasks=completed,
-            failed_tasks=failed,
-            total_tasks=total,
+            pending_tasks=int(pending),
+            running_tasks=int(running),
+            completed_tasks=int(completed),
+            failed_tasks=int(failed),
+            total_tasks=int(total),
         )
     finally:
         session.close()

@@ -42,6 +42,18 @@ class TaskRepository:
     def get_task(session: Session, task_id: str) -> Optional[Task]:
         """Get task by ID."""
         return session.query(Task).filter(Task.task_id == task_id).first()
+
+    @staticmethod
+    def delete_task(session: Session, task_id: str) -> bool:
+        """Delete task by ID."""
+        task = TaskRepository.get_task(session, task_id)
+        if not task:
+            return False
+
+        session.delete(task)
+        session.commit()
+        logger.info(f"Deleted task: {task_id}")
+        return True
     
     @staticmethod
     def update_task_status(
