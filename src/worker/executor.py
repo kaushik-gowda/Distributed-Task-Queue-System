@@ -38,48 +38,57 @@ class TaskWorker:
         """
         logger.info(f"[{self.worker_id}] Processing task: {task_id}")
         
+        # First, get task details and mark as running
+        task_type = None
+        payload_str = None
+        
         with get_session_context() as session:
-            try:
-                # Get task
-                task = TaskRepository.get_task(session, task_id)
-                if not task:
-                    logger.error(f"Task not found: {task_id}")
-                    return False
-                
-                # Mark as running
-                TaskRepository.mark_task_running(session, task_id)
-                self.queue.set_task_state(task_id, "running")
-                
-                # Parse payload
-                payload = json.loads(task.payload) if task.payload else {}
-                
-                # Execute task
-                logger.info(f"[{self.worker_id}] Executing {task.task_type} task: {task_id}")
-                result = execute_task(task.task_type, payload)
-                
-                # Mark as completed
+            task = TaskRepository.get_task(session, task_id)
+            if not task:
+                logger.error(f"Task not found: {task_id}")
+                return False
+            
+            # Extract data before session closes
+            task_type = task.task_type
+            payload_str = task.payload
+            
+            # Mark as running and commit this update
+            TaskRepository.mark_task_running(session, task_id)
+            self.queue.set_task_state(task_id, "running")
+        
+        # Execute task outside of the context manager to avoid rollback on failure
+        try:
+            # Parse payload (extracted before session closed)
+            payload = json.loads(payload_str) if payload_str else {}
+            
+            # Execute task (outside DB context to avoid rollback on failure)
+            logger.info(f"[{self.worker_id}] Executing {task_type} task: {task_id}")
+            result = execute_task(task_type, payload)
+            
+            # Mark as completed in separate transaction
+            with get_session_context() as session:
                 TaskRepository.mark_task_completed(
                     session,
                     task_id,
                     json.dumps(result)
                 )
-                self.queue.set_task_state(task_id, "completed", {"result": result})
-                
-                logger.info(
-                    f"[{self.worker_id}] Task completed successfully: {task_id}"
-                )
-                self.processed_count += 1
-                return True
+                self.queue.set_task_state(task_id, "completed", {"result": json.dumps(result)})
             
-            except Exception as e:
-                logger.error(f"[{self.worker_id}] Task execution failed: {str(e)}")
-                
-                # Get task again to check retry count
+            logger.info(
+                f"[{self.worker_id}] Task completed successfully: {task_id}"
+            )
+            self.processed_count += 1
+            return True
+        
+        except Exception as e:
+            logger.error(f"[{self.worker_id}] Task execution failed: {str(e)}")
+            error_msg = str(e)
+            
+            # Handle failure/retry in separate transaction
+            with get_session_context() as session:
                 task = TaskRepository.get_task(session, task_id)
                 if not task:
                     return False
-                
-                error_msg = str(e)
                 
                 # Check if we should retry
                 if task.retry_count < config.worker.max_retries:
@@ -92,7 +101,7 @@ class TaskWorker:
                     self.queue.set_task_state(
                         task_id,
                         "retrying",
-                        {"retry_count": task.retry_count + 1, "error": error_msg}
+                        {"retry_count": str(task.retry_count + 1), "error": error_msg}
                     )
                     
                     # Re-enqueue task with same priority
@@ -107,10 +116,10 @@ class TaskWorker:
                     self.queue.set_task_state(
                         task_id,
                         "failed",
-                        {"error": error_msg, "retry_count": task.retry_count}
+                        {"error": error_msg, "retry_count": str(task.retry_count)}
                     )
-                
-                return False
+            
+            return False
     
     def process_pending_tasks(self, batch_size: int = 10) -> int:
         """

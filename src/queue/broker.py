@@ -113,18 +113,29 @@ class RedisQueue:
         """
         try:
             key = f"{self.queue_name}:task:{task_id}"
-            state_data = {"state": state}
+            state_data = {"state": str(state)}
+            
             if data:
                 # Ensure all values in mapping are strings
                 for k, v in data.items():
-                    if isinstance(v, (dict, list, bool)):
-                        state_data[k] = json.dumps(v)
-                    elif v is None:
-                        state_data[k] = ""
-                    else:
-                        state_data[k] = str(v)
+                    try:
+                        if isinstance(v, str):
+                            state_data[k] = v
+                        elif isinstance(v, (dict, list)):
+                            state_data[k] = json.dumps(v)
+                        elif v is None:
+                            state_data[k] = ""
+                        else:
+                            state_data[k] = str(v)
+                    except Exception as convert_err:
+                        logger.warning(f"Could not convert {k}={v}: {convert_err}, skipping")
+                        continue
             
-            self.client.hset(key, mapping=state_data)
+            # Simple approach: use individual HSET calls instead of mapping
+            # This is more compatible with different redis-py versions
+            for field, value in state_data.items():
+                self.client.hset(key, field, value)
+            
             # Set expiration to 7 days
             self.client.expire(key, 7 * 24 * 60 * 60)
             logger.debug(f"Set state for task {task_id}: {state}")
