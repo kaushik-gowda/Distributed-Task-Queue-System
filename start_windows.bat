@@ -11,8 +11,8 @@ if not exist "main.py" (
 )
 
 REM Activate virtual environment if it exists
-if exist "venv\Scripts\activate.bat" (
-    call venv\Scripts\activate.bat
+if exist ".venv\Scripts\activate.bat" (
+    call .venv\Scripts\activate.bat
 ) else (
     echo Warning: Virtual environment not found. Make sure dependencies are installed.
 )

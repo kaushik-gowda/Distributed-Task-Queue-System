@@ -148,7 +148,10 @@
                                             <div class="flex items-center">
                                                 <div>
                                                     <div class="text-sm font-medium text-gray-900 font-mono">{{ task.task_id.substring(0,8) }}...</div>
-                                                    <div class="text-xs text-gray-500 mt-0.5"><i class="fa-regular fa-calendar mr-1"></i>{{ new Date(task.created_at).toLocaleTimeString() }}</div>
+                                                    <div class="text-xs text-gray-500 mt-0.5">
+                                                        <i class="fa-regular fa-calendar mr-1"></i>
+                                                        {{ formatTime(task) }}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -263,6 +266,36 @@
                     } finally {
                         this.isSubmitting = false;
                     }
+                },
+                formatTime(task) {
+                    // Format timestamp display based on task status
+                    const created = new Date(task.created_at);
+                    const dateStr = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+                    const timeStr = created.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    
+                    if (task.status === 'pending') {
+                        return `${dateStr} ${timeStr}`;
+                    } else if (task.status === 'running' && task.started_at) {
+                        const started = new Date(task.started_at);
+                        const elapsed = Math.floor((new Date() - started) / 1000);
+                        const secs = elapsed % 60;
+                        const mins = Math.floor(elapsed / 60) % 60;
+                        const hrs = Math.floor(elapsed / 3600);
+                        const duration = hrs > 0 ? `${hrs}h ${mins}m` : mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                        return `Running for ${duration}`;
+                    } else if (task.status === 'completed' && task.completed_at) {
+                        const completed = new Date(task.completed_at);
+                        const started = task.started_at ? new Date(task.started_at) : created;
+                        const elapsed = Math.floor((completed - started) / 1000);
+                        const secs = elapsed % 60;
+                        const mins = Math.floor(elapsed / 60) % 60;
+                        const hrs = Math.floor(elapsed / 3600);
+                        const duration = hrs > 0 ? `${hrs}h ${mins}m` : mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                        return `Completed in ${duration}`;
+                    } else if (task.status === 'failed') {
+                        return `${dateStr} ${timeStr} - Failed`;
+                    }
+                    return `${dateStr} ${timeStr}`;
                 }
             },
             mounted() {

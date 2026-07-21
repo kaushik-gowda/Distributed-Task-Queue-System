@@ -17,8 +17,8 @@ if [ ! -f "main.py" ]; then
 fi
 
 # Activate virtual environment if it exists
-if [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
 else
     echo -e "${YELLOW}Warning: Virtual environment not found. Make sure dependencies are installed.${NC}"
 fi
